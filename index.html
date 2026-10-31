@@ -1,0 +1,579 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Leucine Label Maker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: one narrow working column of numbered steps; each step unlocks the next. */
+  :root {
+    --bg: #f3f6f3;
+    --surface: #ffffff;
+    --ink: #16201b;
+    --muted: #56645d;
+    --line: #d6dfd9;
+    --accent: #1d7356;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2f1ea;
+    --warn: #8a5300;
+    --warn-bg: #fff3dc;
+    --err: #b3261e;
+    --err-bg: #fdeceb;
+    --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1412; --surface: #151d1a; --ink: #e4ebe7; --muted: #9aa9a1; --line: #2a3632;
+      --accent: #52c79c; --accent-ink: #06130e; --accent-soft: #173029;
+      --warn: #f0b458; --warn-bg: #2a200f; --err: #ff8f86; --err-bg: #2f1715;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1412; --surface: #151d1a; --ink: #e4ebe7; --muted: #9aa9a1; --line: #2a3632;
+    --accent: #52c79c; --accent-ink: #06130e; --accent-soft: #173029;
+    --warn: #f0b458; --warn-bg: #2a200f; --err: #ff8f86; --err-bg: #2f1715;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 64px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; display: grid; gap: 20px; }
+
+  header { display: grid; gap: 6px; }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede { margin: 0; color: var(--muted); max-width: 60ch; }
+  .privacy {
+    display: inline-flex; gap: 8px; align-items: center;
+    font-size: 0.875rem; color: var(--muted);
+  }
+  .privacy svg { flex: none; color: var(--accent); }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+  .step[aria-disabled="true"] { opacity: 0.55; }
+  .step-head { display: flex; gap: 12px; align-items: baseline; }
+  .step-num {
+    flex: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .step.done .step-num { background: var(--accent); color: var(--accent-ink); }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.2rem;
+    margin: 0;
+  }
+  .hint { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+  /* Upload */
+  .drop {
+    display: grid; gap: 6px; justify-items: center; text-align: center;
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .drop strong { font-size: 1.05rem; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .file-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .file-name { font-family: var(--font-mono); font-size: 0.9rem; overflow-wrap: anywhere; min-width: 0; }
+
+  /* Controls */
+  label.field { display: grid; gap: 6px; font-weight: 700; }
+  select, input[type="month"] {
+    font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; width: 100%; max-width: 100%;
+  }
+  select:focus-visible, input:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--accent); outline-offset: 2px;
+  }
+
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  legend { padding: 0; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .choice {
+    position: relative;
+    display: grid; gap: 4px;
+    border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px 14px 48px;
+    cursor: pointer;
+  }
+  .choice input { position: absolute; left: 16px; top: 17px; width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+  .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .choice:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .choice-title { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+  .choice-rate { font-family: var(--font-mono); font-size: 0.9rem; color: var(--muted); }
+
+  .confirm { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; }
+  .confirm input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--warn); flex: none; }
+
+  /* Messages */
+  .msg { border-radius: 8px; padding: 10px 14px; font-size: 0.95rem; }
+  .msg p { margin: 0; }
+  .msg ul { margin: 6px 0 0; padding-left: 20px; }
+  .msg.err { background: var(--err-bg); color: var(--err); }
+  .msg.warn { background: var(--warn-bg); color: var(--warn); }
+  .msg.info { background: var(--accent-soft); color: var(--ink); }
+
+  /* Summary + table */
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  .summary div { display: grid; }
+  .summary dt { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .summary dd { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+  .dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end; }
+  .exp { font-family: var(--font-mono); padding: 10px 0; }
+
+  .table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 700; background: var(--bg); white-space: nowrap; }
+  td.mono { font-family: var(--font-mono); font-size: 0.82rem; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  td.cfu { font-weight: 700; }
+  details summary { cursor: pointer; color: var(--accent); white-space: nowrap; }
+  details ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.82rem; font-style: italic; }
+
+  /* Buttons */
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  button {
+    font: inherit; font-weight: 700;
+    border-radius: 8px; padding: 12px 20px;
+    border: 2px solid var(--accent); cursor: pointer;
+    background: var(--accent); color: var(--accent-ink);
+  }
+  button.secondary { background: transparent; color: var(--accent); }
+  button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-weight: 400; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .result { display: grid; gap: 4px; }
+  .result-title { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; }
+
+  .sample-banner { font-weight: 700; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Leucine Label Maker</h1>
+    <p class="lede">Turn a batch sheet from the brand workbook into print-ready probiotic labels: one page per patient, strains ticked, B CFU worked out for you.</p>
+    <p class="privacy">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 7V5a4 4 0 1 1 8 0v2" stroke="currentColor" stroke-width="1.6"/><rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/></svg>
+      Your Excel file is read inside this browser tab. Nothing is uploaded or stored.
+    </p>
+  </header>
+
+  <section class="step" id="step-file" aria-labelledby="h-file">
+    <div class="step-head"><span class="step-num">1</span><h2 id="h-file">Upload the Excel workbook</h2></div>
+    <label class="drop" id="drop">
+      <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm">
+      <strong>Choose the brand .xlsx file</strong>
+      <span class="hint">or drag it here</span>
+    </label>
+    <div class="file-row" id="file-row" hidden>
+      <span class="file-name" id="file-name"></span>
+      <button type="button" class="link" id="change-file">Use a different file</button>
+    </div>
+    <p class="hint" id="sample-hint">Just looking? <button type="button" class="link" id="load-sample">Try it with sample data</button></p>
+    <div class="msg err" id="file-error" role="alert" hidden></div>
+  </section>
+
+  <section class="step" id="step-sheet" aria-labelledby="h-sheet" aria-disabled="true">
+    <div class="step-head"><span class="step-num">2</span><h2 id="h-sheet">Pick the batch sheet</h2></div>
+    <label class="field" for="sheet-select">Sheet
+      <select id="sheet-select" disabled></select>
+    </label>
+    <p class="hint">Sheets are listed by name with their tab position in the workbook. The newest sheet is selected.</p>
+    <div class="msg err" id="sheet-error" role="alert" hidden></div>
+  </section>
+
+  <section class="step" id="step-aud" aria-labelledby="h-aud" aria-disabled="true">
+    <div class="step-head"><span class="step-num">3</span><h2 id="h-aud">Adults or kids?</h2></div>
+    <fieldset>
+      <legend class="sr">Who is this batch for?</legend>
+      <div class="choices">
+        <label class="choice">
+          <input type="radio" name="aud" value="adults" disabled>
+          <span class="choice-title">Adults</span>
+          <span class="choice-rate">2 B CFU per strain</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="aud" value="kids" disabled>
+          <span class="choice-title">Kids</span>
+          <span class="choice-rate">1 B CFU per strain</span>
+        </label>
+      </div>
+    </fieldset>
+    <p class="hint">This sets the B CFU printed on every label. Nothing is pre-selected so it can't be left on the wrong one.</p>
+    <div class="msg warn" id="aud-warn" hidden>
+      <p id="aud-warn-text"></p>
+      <label class="confirm" style="margin-top:8px"><input type="checkbox" id="aud-confirm"> <span id="aud-confirm-text"></span></label>
+    </div>
+  </section>
+
+  <section class="step" id="step-check" aria-labelledby="h-check" aria-disabled="true">
+    <div class="step-head"><span class="step-num">4</span><h2 id="h-check">Check the labels</h2></div>
+    <p class="msg info sample-banner" id="sample-banner" hidden>Sample data. These are made-up patients to show how the tool works. Upload your workbook to make real labels.</p>
+    <dl class="summary" id="summary"></dl>
+    <div class="dates">
+      <label class="field" for="mfg-month">Mfg month
+        <input type="month" id="mfg-month">
+      </label>
+      <div><span class="hint">Exp month (Mfg + 17 months)</span><div class="exp" id="exp-month"></div></div>
+    </div>
+    <div class="msg warn" id="row-warnings" hidden></div>
+    <div class="table-box">
+      <table>
+        <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Batch No</th><th scope="col">BS ID</th><th scope="col">MRP</th><th scope="col">Strains</th><th scope="col" style="text-align:right">B CFU</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="hint">Upload a workbook and pick a sheet to see its patients here.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="step" id="step-out" aria-labelledby="h-out" aria-disabled="true">
+    <div class="step-head"><span class="step-num">5</span><h2 id="h-out">Generate and download</h2></div>
+    <div class="actions">
+      <button type="button" id="generate" disabled>Generate PDF</button>
+      <span class="hint" id="gen-hint">Finish steps 1–3 first.</span>
+    </div>
+    <div class="result" id="result" hidden>
+      <span class="result-title" id="result-title"></span>
+      <span class="hint" id="result-detail"></span>
+      <div class="actions" style="margin-top:8px">
+        <button type="button" id="download">Download PDF</button>
+      </div>
+    </div>
+    <div class="msg" id="out-msg" role="status" aria-live="polite" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="assets.js"></script>
+<script src="generator.js"></script>
+<script>
+(function () {
+  'use strict';
+  const G = window.LeucineLabels;
+  const $ = (id) => document.getElementById(id);
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+  const state = {
+    workbook: null, fileName: '', isSample: false,
+    sheetName: '', parsed: null,
+    audience: null, mismatchConfirmed: false,
+    pdf: null, pdfName: '',
+  };
+
+  // ---------- Step 1: file ----------
+  const fileInput = $('file-input');
+  const drop = $('drop');
+
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  $('change-file').addEventListener('click', () => fileInput.click());
+  $('load-sample').addEventListener('click', loadSample);
+
+  async function loadFile(file) {
+    $('file-error').hidden = true;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = G.readWorkbook(XLSX, new Uint8Array(buf));
+      if (!wb.SheetNames.length) throw new Error('The workbook has no sheets.');
+      setWorkbook(wb, file.name, false);
+    } catch (err) {
+      $('file-error').textContent = `Couldn't read "${file.name}" as an Excel workbook. Check it's an .xlsx file and try again. (${err.message || err})`;
+      $('file-error').hidden = false;
+    }
+  }
+
+  function loadSample() {
+    const header = ['NAME', 'BATCH No', 'MRP', 'BS ID', ...G.STRAINS];
+    const pick = (idx) => G.STRAINS.map((_, i) => idx.includes(i));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      header,
+      ['SAMPLE PATIENT ONE', 'SAMPLE/0001', '12499', 'SAMPLE01', ...pick([0, 2, 4, 7, 8, 10, 12, 17, 22, 26])],
+      ['SAMPLE PATIENT TWO', 'SAMPLE/0002', '12499', 'SAMPLE02', ...pick([1, 2, 5, 10, 15, 17, 20, 23, 24, 27, 28])],
+    ]), 'Sample adults batch');
+    setWorkbook(wb, 'sample-workbook.xlsx (made-up data)', true);
+  }
+
+  function setWorkbook(wb, name, isSample) {
+    Object.assign(state, { workbook: wb, fileName: name, isSample, audience: null, mismatchConfirmed: false });
+    document.querySelectorAll('input[name="aud"]').forEach((r) => { r.checked = false; });
+    $('file-name').textContent = name;
+    $('file-row').hidden = false;
+    drop.hidden = true;
+    $('sample-hint').hidden = true;
+    $('step-file').classList.add('done');
+
+    const sel = $('sheet-select');
+    sel.innerHTML = '';
+    wb.SheetNames.forEach((n, i) => {
+      const o = document.createElement('option');
+      o.value = n;
+      o.textContent = `${n.trim()}   (sheet ${i + 1} of ${wb.SheetNames.length})`;
+      sel.appendChild(o);
+    });
+    sel.value = wb.SheetNames[wb.SheetNames.length - 1];
+    sel.disabled = false;
+    selectSheet(sel.value);
+  }
+
+  // ---------- Step 2: sheet ----------
+  $('sheet-select').addEventListener('change', (e) => selectSheet(e.target.value));
+
+  function selectSheet(name) {
+    state.sheetName = name;
+    state.parsed = G.parseSheet(XLSX, state.workbook, name);
+    state.mismatchConfirmed = false;
+    $('aud-confirm').checked = false;
+    const errs = state.parsed.errors;
+    $('sheet-error').hidden = !errs.length;
+    $('sheet-error').textContent = errs.join(' ');
+    $('step-sheet').classList.toggle('done', !errs.length);
+    render();
+  }
+
+  // ---------- Step 3: audience ----------
+  document.querySelectorAll('input[name="aud"]').forEach((r) => r.addEventListener('change', () => {
+    state.audience = r.value;
+    state.mismatchConfirmed = false;
+    $('aud-confirm').checked = false;
+    render();
+  }));
+  $('aud-confirm').addEventListener('change', (e) => { state.mismatchConfirmed = e.target.checked; render(); });
+
+  // ---------- Step 4: dates ----------
+  const mfg = $('mfg-month');
+  const now = new Date();
+  mfg.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  mfg.addEventListener('change', render);
+  function mfgDate() {
+    const [y, m] = (mfg.value || '').split('-').map(Number);
+    return y && m ? new Date(y, m - 1, 1) : null;
+  }
+
+  // ---------- Render ----------
+  function mismatch() {
+    const guess = G.guessAudience(state.sheetName);
+    return guess && state.audience && guess !== state.audience ? guess : null;
+  }
+
+  function render() {
+    invalidatePdf();
+    const hasWb = !!state.workbook;
+    const sheetOk = hasWb && state.parsed && !state.parsed.errors.length;
+    const mm = mismatch();
+    const audOk = !!state.audience && (!mm || state.mismatchConfirmed);
+    const date = mfgDate();
+
+    $('step-sheet').setAttribute('aria-disabled', String(!hasWb));
+    $('step-aud').setAttribute('aria-disabled', String(!sheetOk));
+    $('step-check').setAttribute('aria-disabled', String(!sheetOk));
+    $('step-out').setAttribute('aria-disabled', String(!(sheetOk && audOk)));
+    document.querySelectorAll('input[name="aud"]').forEach((r) => { r.disabled = !sheetOk; });
+    $('step-aud').classList.toggle('done', sheetOk && audOk);
+
+    // Audience mismatch guard
+    $('aud-warn').hidden = !mm;
+    if (mm) {
+      $('aud-warn-text').textContent = `The sheet name "${state.sheetName.trim()}" says ${mm}, but you picked ${state.audience}. Labels would print ${G.CFU_PER_STRAIN[state.audience]} B CFU per strain instead of ${G.CFU_PER_STRAIN[mm]}.`;
+      $('aud-confirm-text').textContent = `Yes, this batch really is for ${state.audience}`;
+    }
+
+    // Summary + table
+    const sample = state.isSample;
+    $('sample-banner').hidden = !sample;
+    const tbody = $('rows');
+    const summary = $('summary');
+    summary.innerHTML = '';
+    tbody.innerHTML = '';
+    const rate = state.audience ? G.CFU_PER_STRAIN[state.audience] : null;
+
+    if (sheetOk) {
+      const ps = state.parsed.patients;
+      addStat('Sheet', state.sheetName.trim());
+      addStat('Labels', String(ps.length));
+      addStat('Audience', state.audience ? `${cap(state.audience)} · ${rate} B/strain` : 'Not chosen');
+      ps.forEach((p) => {
+        const tr = document.createElement('tr');
+        const cfu = rate ? `${p.strainCount * rate} B` : '—';
+        tr.innerHTML = `<td class="num"></td><td></td><td class="mono"></td><td class="mono"></td><td class="num"></td><td></td><td class="num cfu"></td>`;
+        const c = tr.children;
+        c[0].textContent = p.rowNumber;
+        c[1].textContent = p.name;
+        c[2].textContent = p.batch;
+        c[3].textContent = p.bsid;
+        c[4].textContent = p.price;
+        const det = document.createElement('details');
+        const sum = document.createElement('summary');
+        sum.textContent = `${p.strainCount} strains`;
+        const ul = document.createElement('ul');
+        p.selected.forEach((on, i) => { if (on) { const li = document.createElement('li'); li.textContent = G.STRAINS[i]; ul.appendChild(li); } });
+        det.append(sum, ul);
+        c[5].appendChild(det);
+        c[6].textContent = cfu;
+        tbody.appendChild(tr);
+      });
+      const w = state.parsed.warnings;
+      $('row-warnings').hidden = !w.length;
+      $('row-warnings').innerHTML = '';
+      if (w.length) {
+        const p = document.createElement('p'); p.textContent = 'Check these rows before printing:';
+        const ul = document.createElement('ul');
+        w.forEach((t) => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+        $('row-warnings').append(p, ul);
+      }
+    } else {
+      $('row-warnings').hidden = true;
+      tbody.innerHTML = '<tr><td colspan="7" class="hint">Upload a workbook and pick a sheet to see its patients here.</td></tr>';
+    }
+
+    $('exp-month').textContent = date ? G.labelDates(date).exp : '—';
+    $('step-check').classList.toggle('done', sheetOk && !!date);
+
+    const ready = sheetOk && audOk && !!date;
+    $('generate').disabled = !ready;
+    $('gen-hint').textContent = ready ? `${state.parsed.patients.length} labels at ${rate} B CFU per strain.`
+      : !hasWb ? 'Upload a workbook first.'
+      : !sheetOk ? 'Pick a sheet without errors.'
+      : !state.audience ? 'Choose Adults or Kids.'
+      : mm && !state.mismatchConfirmed ? 'Confirm the Adults / Kids choice in step 3.'
+      : 'Set the Mfg month.';
+
+    function addStat(k, v) {
+      const d = document.createElement('div');
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v;
+      d.append(dt, dd); summary.appendChild(d);
+    }
+  }
+  const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+  // ---------- Step 5: generate + download ----------
+  function invalidatePdf() {
+    state.pdf = null;
+    $('result').hidden = true;
+    $('out-msg').hidden = true;
+    $('step-out').classList.remove('done');
+  }
+
+  $('generate').addEventListener('click', async () => {
+    const btn = $('generate');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    $('out-msg').hidden = true;
+    try {
+      const A = window.LEUCINE_ASSETS;
+      const bytes = await G.buildPdf(PDFLib, {
+        patients: state.parsed.patients,
+        audience: state.audience,
+        mfgDate: mfgDate(),
+        templateBytes: b64(A.templatePdf),
+        checkBytes: b64(A.checkmarkPng),
+      });
+      state.pdf = bytes;
+      const safe = state.sheetName.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ');
+      state.pdfName = `${state.isSample ? 'SAMPLE - ' : ''}${safe} - ${state.audience} labels.pdf`;
+      const n = state.parsed.patients.length;
+      const d = G.labelDates(mfgDate());
+      $('result-title').textContent = `${n} label${n === 1 ? '' : 's'} ready`;
+      $('result-detail').textContent = `${state.pdfName} · ${(bytes.length / 1048576).toFixed(1)} MB · Mfg ${d.mfg}, Exp ${d.exp}`;
+      $('result').hidden = false;
+      $('step-out').classList.add('done');
+    } catch (err) {
+      showOut('err', `The PDF couldn't be built: ${err.message || err}`);
+    } finally {
+      btn.textContent = 'Generate PDF';
+      btn.disabled = false;
+    }
+  });
+
+  let downloadsNs;
+  async function getDownloads() {
+    if (downloadsNs !== undefined) return downloadsNs;
+    downloadsNs = window.claude && typeof window.claude.use === 'function'
+      ? await window.claude.use('downloads').catch(() => null)
+      : 'browser';
+    return downloadsNs;
+  }
+
+  $('download').addEventListener('click', async () => {
+    if (!state.pdf) return;
+    const dl = await getDownloads();
+    if (dl === 'browser') {
+      // Opened outside Claude (e.g. as a local file): a plain browser download works.
+      const url = URL.createObjectURL(new Blob([state.pdf], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = state.pdfName;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showOut('info', `Downloaded ${state.pdfName}.`);
+      return;
+    }
+    if (!dl) {
+      showOut('err', 'Downloads aren\'t available in this view. Open the page in a browser on claude.ai and try again.');
+      return;
+    }
+    try {
+      await dl.save({ filename: state.pdfName, data: new Blob([state.pdf]) });
+      showOut('info', `Saved ${state.pdfName}.`);
+    } catch (err) {
+      const code = err && err.code;
+      if (code === 'declined') showOut('warn', 'Download cancelled. Press Download PDF again when you\'re ready.');
+      else if (code === 'rate_limited') showOut('warn', 'A save prompt is already open. Finish that one, then try again.');
+      else showOut('err', 'Downloads aren\'t available in this view. Open the page in a browser on claude.ai and try again.');
+    }
+  });
+
+  function showOut(kind, text) {
+    const m = $('out-msg');
+    m.className = `msg ${kind}`;
+    m.textContent = text;
+    m.hidden = false;
+  }
+
+  render();
+})();
+</script>
