@@ -7,8 +7,12 @@ list, then generates and downloads the PDF.
 
 Everything runs in the browser. The Excel file is never uploaded anywhere.
 
-Live copy: https://claude.ai/artifact/GXHLwhodZVYZWnhUfDCpqE (share it from the
-page's Share menu).
+Public site (anyone can use it, no sign-in):
+https://gauravaifirmware.github.io/leucine-label-maker/
+
+There is also a claude.ai copy at
+https://claude.ai/artifact/GXHLwhodZVYZWnhUfDCpqE. claude.ai blocks the
+download for some viewers, so share the public site instead.
 
 ## Files
 
