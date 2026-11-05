@@ -28,6 +28,14 @@ cdnjs.
 
 If the label template changes, regenerate `assets.js` from the new PDF.
 
+## Nutrition panel width
+
+The template's nutrition panel is 6.5 × 5.7 cm. The generator prints it at
+5.7 × 5.7 cm by squeezing it horizontally (text about 12% narrower), and
+moves the dimension arrows to match. To change the width, edit
+`PANEL_WIDTH_CM` in `generator.js`; set it to 6.5 to print the template as
+designed.
+
 ## Checks it makes that the backend doesn't
 
 - The strain columns (E to AG) must match the 29 label strains in order, or it

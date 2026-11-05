@@ -54,7 +54,17 @@
   const SHELF_LIFE_MONTHS = 17;
   const CFU_PER_STRAIN = { adults: 2, kids: 1 };
 
-  const TRUE_WORDS = new Set(['true', 'yes', 'y', '1', 'x', '✓', '✔', '✅']);
+  // The nutrition panel is 6.5 × 5.7 cm in the template; it prints at
+  // PANEL_WIDTH_CM wide by squeezing it horizontally, anchored on its left
+  // edge. Box and dimension-callout positions are template points, read from
+  // the template's drawing commands.
+  const PT_PER_CM = 72 / 2.54;
+  const PANEL_WIDTH_CM = 5.7;
+  const PANEL = { left: 98.9, bottom: 600.9, right: 283.2, top: 762.5 };
+  const PANEL_SX = (PANEL_WIDTH_CM * PT_PER_CM) / (6.5 * PT_PER_CM);
+  const PANEL_DX = (PANEL.right - PANEL.left) * (1 - PANEL_SX); // how far the right edge moves in
+
+  const TRUE_WORDS =new Set(['true', 'yes', 'y', '1', 'x', '✓', '✔', '✅']);
   const FALSE_WORDS = new Set(['false', 'no', 'n', '0', '-', '']);
 
   const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -151,7 +161,7 @@
    * opts: { patients, audience: 'adults'|'kids', mfgDate: Date, templateBytes, checkBytes }
    */
   async function buildPdf(PDFLib, opts) {
-    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, concatTransformationMatrix, rectangle, clip, endPath } = PDFLib;
     const rate = CFU_PER_STRAIN[opts.audience];
     if (!rate) throw new Error('Choose Adults or Kids first.');
 
@@ -164,16 +174,55 @@
     const black = rgb(0, 0, 0);
     const { mfg, exp } = labelDates(opts.mfgDate);
 
+    // Pieces of the original template, re-drawn moved or squeezed (see PANEL).
+    // The template is embedded once and clipped per piece, so the file doesn't
+    // carry a copy of the template for every piece.
+    const tplForm = await pdfDoc.embedPage(template.getPage(0));
+    const panelBox = [PANEL.left - 1, PANEL.bottom - 1, PANEL.right + 1, PANEL.top + 1];
+    const widthArrowBox = [PANEL.left - 1, 766.5, PANEL.right + 1, 778.2];   // "6.5 cm" arrow, without its text
+    const heightCalloutBox = [286.9, PANEL.bottom - 1, 350, PANEL.top + 1];  // right-hand arrow + "5.7 cm"
+    const label57Box = [297.7, 676.6, 336, 689];                             // the "5.7 cm" lettering
+
+    // Draw template region [l, b, r, t] with its bottom-left at (x, y), squeezed by sx.
+    function piece(page, [l, b, r, t], x, y, sx = 1) {
+      page.pushOperators(
+        pushGraphicsState(),
+        concatTransformationMatrix(sx, 0, 0, 1, x - l * sx, y - b),
+        rectangle(l, b, r - l, t - b), clip(), endPath(),
+      );
+      page.drawPage(tplForm, { x: 0, y: 0 });
+      page.pushOperators(popGraphicsState());
+    }
+
+    function drawSqueezedPanel(page) {
+      // Blank the original panel and both callouts, then draw the new ones.
+      page.drawRectangle({ x: PANEL.left - 2, y: PANEL.bottom - 2, width: 352 - PANEL.left, height: 792 - PANEL.bottom, color: rgb(1, 1, 1) });
+      const x0 = PANEL.left - PANEL_SX; // boxes start 1 pt left of the panel, scaled
+      piece(page, panelBox, x0, panelBox[1], PANEL_SX);
+      piece(page, widthArrowBox, x0, widthArrowBox[1], PANEL_SX);
+      const mid = PANEL.left + (PANEL.right - PANEL.left) * PANEL_SX / 2;
+      piece(page, label57Box, mid - (label57Box[2] - label57Box[0]) / 2, 778.4 - (677.6 - label57Box[1]));
+      piece(page, heightCalloutBox, heightCalloutBox[0] - PANEL_DX, heightCalloutBox[1]);
+    }
+
+    // Text that sits inside the panel is squeezed with it.
+    function inPanel(page, draw) {
+      page.pushOperators(pushGraphicsState(), concatTransformationMatrix(PANEL_SX, 0, 0, 1, PANEL.left * (1 - PANEL_SX), 0));
+      draw();
+      page.pushOperators(popGraphicsState());
+    }
+
     for (const p of opts.patients) {
       const [tpl] = await pdfDoc.copyPages(template, [0]);
       const page = pdfDoc.addPage(tpl);
       const text = (x, y, size, s) => page.drawText(s, { x, y, size, font, color: black });
 
+      drawSqueezedPanel(page);
       text(376, 707, 10, `Batch No: ${p.batch}`);
       text(376, 695, 10, `Mfg Date: ${mfg}`);
       text(376, 683, 10, `Exp Date: ${exp}`);
       text(376, 671, 10, `MRP:        ${p.price}`);
-      text(188, 690, 5, `${p.strainCount * rate} B CFU`);
+      inPanel(page, () => text(188, 690, 5, `${p.strainCount * rate} B CFU`));
       text(110, 520, 10, p.name);
       text(110, 502, 12, p.bsid);
 
