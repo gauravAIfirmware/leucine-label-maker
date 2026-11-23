@@ -64,6 +64,14 @@
   const PANEL_SX = (PANEL_WIDTH_CM * PT_PER_CM) / (6.5 * PT_PER_CM);
   const PANEL_DX = (PANEL.right - PANEL.left) * (1 - PANEL_SX); // how far the right edge moves in
 
+  // The 6 × 1.4 cm name box spans x 106.0–276.1 pt; name and BS ID start at
+  // x 110, so they keep the same 4 pt margin on the right.
+  const NAME_BOX_TEXT_RIGHT = 276.1 - 4;
+  const MIN_NAME_SIZE = 6;
+  // Helvetica isn't embedded, so each viewer/printer draws its own stand-in;
+  // pdf.js measured long names up to 3% wider than Helvetica's widths.
+  const FIT_SLACK = 1.05;
+
   const TRUE_WORDS =new Set(['true', 'yes', 'y', '1', 'x', '✓', '✔', '✅']);
   const FALSE_WORDS = new Set(['false', 'no', 'n', '0', '-', '']);
 
@@ -212,6 +220,21 @@
       page.pushOperators(popGraphicsState());
     }
 
+    // Draw s at size, shrinking it to fit before x reaches `right`. Below
+    // MIN_NAME_SIZE it stays at that size and is squeezed sideways instead.
+    function fitText(page, x, y, size, s, right) {
+      const room = (right - x) / FIT_SLACK;
+      const fitted = Math.min(size, room / font.widthOfTextAtSize(s, 1));
+      if (fitted >= MIN_NAME_SIZE) {
+        page.drawText(s, { x, y, size: fitted, font, color: black });
+        return;
+      }
+      const sx = room / font.widthOfTextAtSize(s, MIN_NAME_SIZE);
+      page.pushOperators(pushGraphicsState(), concatTransformationMatrix(sx, 0, 0, 1, x * (1 - sx), 0));
+      page.drawText(s, { x, y, size: MIN_NAME_SIZE, font, color: black });
+      page.pushOperators(popGraphicsState());
+    }
+
     for (const p of opts.patients) {
       const [tpl] = await pdfDoc.copyPages(template, [0]);
       const page = pdfDoc.addPage(tpl);
@@ -223,8 +246,8 @@
       text(376, 683, 10, `Exp Date: ${exp}`);
       text(376, 671, 10, `MRP:        ${p.price}`);
       inPanel(page, () => text(188, 690, 5, `${p.strainCount * rate} B CFU`));
-      text(110, 520, 10, p.name);
-      text(110, 502, 12, p.bsid);
+      fitText(page, 110, 520, 10, p.name, NAME_BOX_TEXT_RIGHT);
+      fitText(page, 110, 502, 12, p.bsid, NAME_BOX_TEXT_RIGHT);
 
       let y = 410;
       p.selected.forEach((on, i) => {
